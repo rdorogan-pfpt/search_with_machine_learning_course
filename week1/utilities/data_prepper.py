@@ -236,20 +236,30 @@ class DataPrepper:
                                                 size=len(query_doc_ids), terms_field=terms_field)
         ##### Step Extract LTR Logged Features:
         # IMPLEMENT_START --
-        print("IMPLEMENT ME: __log_ltr_query_features: Extract log features out of the LTR:EXT response and place in a data frame")
-        # Loop over the hits structure returned by running `log_query` and then extract out the features from the response per query_id and doc id.  Also capture and return all query/doc pairs that didn't return features
-        # Your structure should look like the data frame below
+        #print("-- __log_ltr_query_features: Extract log features out of the LTR:EXT response and place in a data frame")
+        response = self.opensearch.search(body=log_query, index=self.index_name)
+
         feature_results = {}
-        feature_results["doc_id"] = []  # capture the doc id so we can join later
-        feature_results["query_id"] = []  # ^^^
+        feature_results["doc_id"] = []
+        feature_results["query_id"] = []
         feature_results["sku"] = []
-        feature_results["name_match"] = []
-        rng = np.random.default_rng(12345)
-        for doc_id in query_doc_ids:
-            feature_results["doc_id"].append(doc_id)  # capture the doc id so we can join later
-            feature_results["query_id"].append(query_id)
-            feature_results["sku"].append(doc_id)  
-            feature_results["name_match"].append(rng.random())
+        if response and len(response['hits']) > 0:
+            for hit in response['hits']['hits']:
+                feature_results["doc_id"].append(int(hit['_id']))
+                feature_results["query_id"].append(query_id)
+                for sku in hit['_source']['sku']:
+                  feature_results["sku"].append(int(sku))
+                for log_entry in hit['fields']['_ltrlog'][0]['log_entry']: 
+                  log_entry_name = log_entry['name']
+                  if feature_results.get(log_entry_name) is None:
+                     feature_results[log_entry_name] = []
+                  if log_entry.get('value') is None:
+                     feature_results[log_entry_name].append(0)
+                  else:
+                     feature_results[log_entry_name].append(log_entry['value'])     
+        else:
+            print("-- !!! UNEXPECTED RESPONSE !!!")
+
         frame = pd.DataFrame(feature_results)
         return frame.astype({'doc_id': 'int64', 'query_id': 'int64', 'sku': 'int64'})
         # IMPLEMENT_END
