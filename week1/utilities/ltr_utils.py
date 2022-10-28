@@ -82,7 +82,7 @@ def create_feature_log_query(query, doc_ids, click_prior_query, featureset_name,
                 "filter": [
                     {
                         "terms": {
-                            terms_field: doc_ids
+                            terms_field: doc_ids[: size]
                         }
                     },
                     {
@@ -108,7 +108,7 @@ def create_feature_log_query(query, doc_ids, click_prior_query, featureset_name,
         }
     }
     # IMPLEMENT_END
-    
+
     return query_obj
 
 
