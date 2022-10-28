@@ -235,8 +235,8 @@ class DataPrepper:
                                                 self.ltr_store_name,
                                                 size=len(query_doc_ids), terms_field=terms_field)
         ##### Step Extract LTR Logged Features:
-        # IMPLEMENT_START --
-        #print("-- __log_ltr_query_features: Extract log features out of the LTR:EXT response and place in a data frame")
+     
+        # IMPLEMENT_BEGIN
         response = self.opensearch.search(body=log_query, index=self.index_name)
 
         feature_results = {}
@@ -249,6 +249,7 @@ class DataPrepper:
                 feature_results["query_id"].append(query_id)
                 for sku in hit['_source']['sku']:
                   feature_results["sku"].append(int(sku))
+                
                 for log_entry in hit['fields']['_ltrlog'][0]['log_entry']: 
                   log_entry_name = log_entry['name']
                   if feature_results.get(log_entry_name) is None:
@@ -258,7 +259,7 @@ class DataPrepper:
                   else:
                      feature_results[log_entry_name].append(log_entry['value'])     
         else:
-            print("-- !!! UNEXPECTED RESPONSE !!!")
+            raise Exception("Unexpected empty ltr response")
 
         frame = pd.DataFrame(feature_results)
         return frame.astype({'doc_id': 'int64', 'query_id': 'int64', 'sku': 'int64'})

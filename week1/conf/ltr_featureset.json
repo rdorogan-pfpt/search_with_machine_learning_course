@@ -14,6 +14,24 @@
         }
       },
       {
+        "name": "sale_price",
+        "template_language": "mustache",
+        "template": {
+            "function_score": {
+              "functions": [{
+                    "field_value_factor": {
+                        "field": "salePrice",
+                        "factor": 10,
+                        "missing": 0
+                    }
+                }],
+                "query": {
+                    "match_all": {}
+                }
+            }
+        }
+      },
+      {
         "name": "artist_name_phrase_match",
         "params": [
           "keywords"
@@ -112,7 +130,11 @@
                     }
                 }],
                 "query": {
-                    "match_all": {}
+                    "range": {
+                      "customerReviewAverage": {
+                        "gte": "4.5"
+                      }
+                    }
                 }
             }
         }
@@ -129,8 +151,12 @@
                     }
                 }],
                 "query": {
-                    "match_all": {}
-                }
+                  "range": {
+                    "customerReviewCount": {
+                      "gte": "5"
+                    }
+                  }
+              }
             }
         }
       }
