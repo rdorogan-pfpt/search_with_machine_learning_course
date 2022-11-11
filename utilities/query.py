@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 import pandas as pd
 import fileinput
 import logging
-
+import fasttext
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -186,14 +186,18 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
         query_obj["_source"] = source
     return query_obj
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", useSynonyms=False):
-    #### W3: classify the query
-    #### W3: create filters and boosts
-    # Note: you may also want to modify the `create_query` method above
+def search(client, fasttext_model, user_query, index="bbuy_products", sort="_score", sortDir="desc", useSynonyms=False):
+
+    categories=fasttext_model.predict(user_query)[0]
+    categories=[cat.replace('__label__','') for cat in categories]
+    #print(categories)
+    filters=[]
+    filters.append({"terms": {"categoryPathIds":categories}})
+
     field="name"
     if useSynonyms: 
         field="name.synonyms"
-    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"], searchField=field)
+    query_obj = create_query(user_query, click_prior_query=None, filters=filters, sort=sort, sortDir=sortDir, source=["name", "shortDescription"], searchField=field)
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
@@ -247,8 +251,9 @@ if __name__ == "__main__":
     )
     index_name = args.index
     query=""
+    model = fasttext.load_model(r"/workspace/datasets/fasttext/query_classifier.bin")
     while query != "Exit":
         query = input("\nEnter your query (type 'Exit' to exit or hit ctrl-c): ").rstrip()
-        search(client=opensearch, user_query=query, index=index_name, useSynonyms=use_synonyms)
+        search(client=opensearch, fasttext_model=model, user_query=query, index=index_name, sort="regularPrice", useSynonyms=use_synonyms)
 
     

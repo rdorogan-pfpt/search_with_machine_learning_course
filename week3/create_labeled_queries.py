@@ -48,9 +48,30 @@ parents_df = pd.DataFrame(list(zip(categories, parents)), columns =['category', 
 queries_df = pd.read_csv(queries_file_name)[['category', 'query']]
 queries_df = queries_df[queries_df['category'].isin(categories)]
 
-# IMPLEMENT ME: Convert queries to lowercase, and optionally implement other normalization, like stemming.
+def stemQuery(q):
+    words = q.split()
+    stemWords = []
+    for word in words:
+       stemWords.append(stemmer.stem(word))
+    return ' '.join(stemWords)
 
-# IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
+# Normalize queries
+queries_df['query'] = queries_df['query'].str.lower().str.replace('[\\d\\s]+', ' ').apply(lambda q: stemQuery(q))
+
+# Create the dictionary category to parent category 
+all_parent_dictionary = parents_df.set_index('category').to_dict()['parent']
+
+# Roll up categories to ancestors to satisfy the minimum number of queries per category.
+while (True):
+    small_cat_df = queries_df.groupby(['category']).size().reset_index(name='count')
+    small_cat_df = small_cat_df[(small_cat_df["count"] < 1000)]
+    small_cat_df['parent'] = small_cat_df.apply(lambda row: all_parent_dictionary.get(row['category'], row['category']), axis=1)
+    small_cat_df.drop('count', axis=1)
+    if (len(small_cat_df) == 0):
+        break;
+    #small_cat_df[['category','parent']].to_csv(r'/workspace/datasets/fasttext/small_cat_1.txt', header=False, sep=',', escapechar='\\', quoting=csv.QUOTE_NONE, index=False)
+    parent_dictionary = small_cat_df.set_index('category').to_dict()['parent']
+    queries_df['category'] = queries_df['category'].apply(lambda c: parent_dictionary.get(c, c))
 
 # Create labels in fastText format.
 queries_df['label'] = '__label__' + queries_df['category']
