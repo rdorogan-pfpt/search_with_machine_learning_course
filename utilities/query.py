@@ -12,6 +12,7 @@ import pandas as pd
 import fileinput
 import logging
 import fasttext
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -46,7 +47,6 @@ def create_prior_queries(doc_ids, doc_id_weights,
             except KeyError as ke:
                 pass  # nothing to do in this case, it just means we can't find priors for this doc
     return click_prior_query
-
 
 # Hardcoded query here.  Better to use search templates or other query config.
 def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None, searchField="name"):
@@ -198,12 +198,35 @@ def search(client, fasttext_model, user_query, index="bbuy_products", sort="_sco
     if useSynonyms: 
         field="name.synonyms"
     query_obj = create_query(user_query, click_prior_query=None, filters=filters, sort=sort, sortDir=sortDir, source=["name", "shortDescription"], searchField=field)
+ 
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
         print(json.dumps(response, indent=2))
 
+def vector_search(client, model, user_query, index="bbuy_products", size=15):
+    user_queries = []
+    user_queries.append(user_query)
+    vector=model.encode(user_queries)
+    print(vector)
+    query_obj = {
+      "size": size,
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": vector[0],
+                    "k": 10
+                }
+            }
+        }
+    }
+ 
+    logging.info(query_obj)
+    response = client.search(query_obj, index=index)
+    if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
+        hits = response['hits']['hits']
+        print(json.dumps(response, indent=2))
 
 if __name__ == "__main__":
     host = 'localhost'
@@ -251,9 +274,13 @@ if __name__ == "__main__":
     )
     index_name = args.index
     query=""
-    model = fasttext.load_model(r"/workspace/datasets/fasttext/query_classifier.bin")
+    #model = fasttext.load_model(r"/workspace/datasets/fasttext/query_classifier.bin")
+    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+    print(model)
+
     while query != "Exit":
         query = input("\nEnter your query (type 'Exit' to exit or hit ctrl-c): ").rstrip()
-        search(client=opensearch, fasttext_model=model, user_query=query, index=index_name, sort="regularPrice", useSynonyms=use_synonyms)
+        #search(client=opensearch, fasttext_model=model, user_query=query, index=index_name, sort="regularPrice", useSynonyms=use_synonyms)
+        vector_search(client=opensearch, model=model, user_query=query)
 
     

@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
 
-# IMPLEMENT ME: import the sentence transformers module!
+from sentence_transformers import SentenceTransformer
+
 
 # NOTE: this is not a complete list of fields.  If you wish to add more, put in the appropriate XPath expression.
 #TODO: is there a way to do this using XPath/XSL Functions so that we don't have to maintain a big list?
@@ -103,11 +104,18 @@ def get_opensearch():
     )
     return client
 
+def add_embeddings(model, docs, names):
+    print(names)
+    embeddings = model.encode(names)
+    for index,  embedding in enumerate(embeddings):
+        doc = docs[index]['_source']
+        doc['embedding'] = embedding
+        docs[index]['_source'] = doc
 
 def index_file(file, index_name, reduced=False):
     logger.info("Creating Model")
-    # IMPLEMENT ME: instantiate the sentence transformer model!
-    
+    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+    print(model)
     logger.info("Ready to index")
 
     docs_indexed = 0
@@ -118,11 +126,6 @@ def index_file(file, index_name, reduced=False):
     children = root.findall("./product")
     docs = []
     names = []
-    # IMPLEMENT ME: maintain the names array parallel to docs,
-    # and then embed them in bulk and add them to each doc,
-    # in the '_source' part of each docs entry, before calling bulk
-    # to index them 200 at a time. Make sure to clear the names array
-    # when you clear the docs array!
     for child in children:
         doc = {}
         for idx in range(0, len(mappings), 2):
@@ -136,16 +139,19 @@ def index_file(file, index_name, reduced=False):
             continue
         if reduced and ('categoryPath' not in doc or 'Best Buy' not in doc['categoryPath'] or 'Movies & Music' in doc['categoryPath']):
             continue
+        names.append(doc['name'][0])    
         docs.append({'_index': index_name, '_id':doc['sku'][0], '_source' : doc})
         #docs.append({'_index': index_name, '_source': doc})
         docs_indexed += 1
         if docs_indexed % 200 == 0:
             logger.info("Indexing")
+            add_embeddings(model, docs, names)
             bulk(client, docs, request_timeout=60)
             logger.info(f'{docs_indexed} documents indexed')
             docs = []
             names = []
     if len(docs) > 0:
+        add_embeddings(model, docs, names)
         bulk(client, docs, request_timeout=60)
         logger.info(f'{docs_indexed} documents indexed')
     return docs_indexed
